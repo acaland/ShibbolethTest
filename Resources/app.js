@@ -65,21 +65,52 @@ net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", functi
 
 federationsTableView.addEventListener('click', function(e) {
 	var idpsData = [];
+	//detailNav.open(idpsListWindow);
 	for (var i=0; i<e.rowData.idps.length; i++) {
 			idpsData[i] = {title: e.rowData.idps[i].displayName, origin: e.rowData.idps[i].origin, hasChild: true}
 	}
 	idpsTableView.setData(idpsData);
+});
+
+idpsTableView.addEventListener('click', function(e) {
 	
+	var login_url = "https://gridp.ct.infn.it/ds/WAYF?entityID=https://indicate-gw.consorzio-cometa.it/shibboleth&action=selection&origin=";
+	idpsListWindow.setTitle("Back");
+	detailNav.open(loginWindow);
+	loginWindow.setTitle(e.rowData.title);
 	
+	//loginWindow.leftNavButton = Titanium.UI.createButton({title:'Back'});
+	//Ti.API.info(e.rowData.origin);
+	wv.url = login_url + e.rowData.origin;
+	
+});
+
+idpsListWindow.addEventListener('focus', function() {
+	idpsListWindow.title = "Please select your identity provider";
 });
 
 var loginSplitWindow = Ti.UI.iPad.createSplitWindow({
 	masterView: masterNav,
 	detailView: detailNav,
+	/*
 	orientationModes : [
-		Titanium.UI.LANDSCAPE_LEFT,
-		Titanium.UI.LANDSCAPE_RIGHT,
-	]
+			Titanium.UI.LANDSCAPE_LEFT,
+			Titanium.UI.LANDSCAPE_RIGHT,
+		]*/
+	
+});
+
+loginSplitWindow.addEventListener('visible',function(e)
+{
+    if (e.view == 'detail')
+    {
+        e.button.title = "Federations";
+        idpsListWindow.leftNavButton = e.button;
+    }
+    else if (e.view == 'master')
+    {
+        idpsListWindow.leftNavButton = null;
+    }
 });
 
 
@@ -88,7 +119,7 @@ loginSplitWindow.open();
 
 
 //var url = "https://glibrary.ct.infn.it/secure/view.php?all_variables";
-var login_url = "https://gridp.ct.infn.it/ds/WAYF?entityID=https://liferay.ct.infn.it/shibboleth&action=selection&origin=https://idp.ct.infn.it/idp/shibboleth";
+
 
 var url = "https://liferay.ct.infn.it/glibrary/time/";
 
@@ -98,23 +129,24 @@ var win = Ti.UI.createWindow({
 });
 
 
-var loginWin = Ti.UI.createWindow({
-	modal:true,
+var loginWindow = Ti.UI.createWindow({
+	//modal:true,
 	backgroundColor: "white"
 });
 
 
 var loadingInd = Ti.UI.createActivityIndicator({
 	style: Ti.UI.iPhone.ActivityIndicatorStyle.DARK,
-	width: "auto",
-	height: "auto",
+	color: "black",
+	width: "200",
+	height: "80",
 	message: "Loading...",
 	font: {fontFamily: "Helvetica Neue", fontSize: 26, fontFamily: "bold"}
 });
 
 
 var wv = Ti.UI.createWebView({
-	url : login_url,
+	//url : login_url,
 	//borderWidth : 10,
 	//borderRadius : 5,
 	//height : 550,
@@ -122,7 +154,7 @@ var wv = Ti.UI.createWebView({
 	//borderColor : "gray"
 });
 
-loginWin.add(wv);
+loginWindow.add(wv);
 
 wv.addEventListener('beforeload', function() {
 	Ti.API.info("beforeload");
@@ -133,6 +165,7 @@ wv.addEventListener('beforeload', function() {
 });
 
 wv.addEventListener('load', function(e) {
+	Ti.API.info("into load event");
 	loadingInd.hide();
 	if(firstLoad) {
 		firstLoad = false;
@@ -149,8 +182,9 @@ wv.addEventListener('load', function(e) {
 					Ti.API.info("Shibboleth Session: " + shibCookie);
 					getRepoButtons.visible = true;
 					getStoragesButton.visible = true;
-					loginBtn.visible = false;
-					loginWin.close();
+					//loginBtn.visible = false;
+					loginSplitWindow.close();
+					alert("logged successfully");
 					break;
 				}
 			}
@@ -160,17 +194,7 @@ wv.addEventListener('load', function(e) {
 	}
 });
 
-var loginBtn = Ti.UI.createButton({
-	title : "Login",
-	width : 100,
-	height : 70,
-	top : 30
-});
 
-loginBtn.addEventListener("click", function() {
-	//win.add(wv);
-	loginWin.open();
-})
 var getRepoButtons = Ti.UI.createButton({
 	title : "get DeRoberto tree",
 	width : 160,
@@ -194,7 +218,7 @@ getStoragesButton.addEventListener("click", function() {
 	apiCall(shibCookie, "http://liferay.ct.infn.it/decide/storages/3");
 })
 
-win.add(loginBtn);
+
 win.add(getRepoButtons);
 win.add(getStoragesButton);
 

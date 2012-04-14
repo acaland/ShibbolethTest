@@ -4,7 +4,7 @@ Titanium.UI.setBackgroundColor('#000');
 var shibCookie = "";
 var firstLoad = true;
 
-// prova2
+
 //var url = "https://glibrary.ct.infn.it/secure/view.php?all_variables";
 var login_url = "https://gridp.ct.infn.it/ds/WAYF?entityID=https://liferay.ct.infn.it/shibboleth&action=selection&origin=https://idp.ct.infn.it/idp/shibboleth";
 

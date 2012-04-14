@@ -5,6 +5,88 @@ var shibCookie = "";
 var firstLoad = true;
 
 
+
+var federationsWindow = Ti.UI.createWindow({
+	backgroundColor: "white",
+	title: "Federations"
+});
+
+var federationsTableView = Ti.UI.createTableView({
+	allowsSelection:true
+});
+federationsWindow.add(federationsTableView);
+
+
+var masterNav = Ti.UI.iPhone.createNavigationGroup({
+	window:federationsWindow
+});
+
+var idpSearchBar = Titanium.UI.createSearchBar({
+	showCancel:false
+});
+
+var idpsListWindow = Ti.UI.createWindow({
+	backgroundColor: "white",
+	title: "Select your identity provider"
+});
+
+var idpsTableView = Ti.UI.createTableView({
+	search: idpSearchBar,
+	filterAttribute: 'title'
+});
+
+idpsListWindow.add(idpsTableView);
+
+var detailNav = Ti.UI.iPhone.createNavigationGroup({
+	window: idpsListWindow
+});
+
+var net = require("services/net");
+net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", function(federations) {
+	var federationData = [];
+	federationData[0] = {title: "All", hasChild: true}
+	federationData[0].idps = [];
+	for (var i=0; i < federations.length; i++) {
+		federationData[0].idps = federationData[0].idps.concat(federations[i].idps);
+		federationData[i+1] ={title: federations[i].name, idps: federations[i].idps, hasChild: true};
+	}
+	federationData[0].idps.sort(function(a, b) {
+ 		var nameA=a.displayName.toLowerCase(), nameB=b.displayName.toLowerCase();
+ 		if (nameA < nameB) //sort string ascending
+  			return -1; 
+ 		if (nameA > nameB)
+  			return 1;
+ 		return 0; //default return value (no sorting)
+	});
+	federationsTableView.setData(federationData);
+	federationsTableView.selectRow(0);
+	federationsTableView.fireEvent('click', {rowData:federationData[0]});
+});
+
+federationsTableView.addEventListener('click', function(e) {
+	var idpsData = [];
+	for (var i=0; i<e.rowData.idps.length; i++) {
+			idpsData[i] = {title: e.rowData.idps[i].displayName, origin: e.rowData.idps[i].origin, hasChild: true}
+	}
+	idpsTableView.setData(idpsData);
+	
+	
+});
+
+var loginSplitWindow = Ti.UI.iPad.createSplitWindow({
+	masterView: masterNav,
+	detailView: detailNav,
+	orientationModes : [
+		Titanium.UI.LANDSCAPE_LEFT,
+		Titanium.UI.LANDSCAPE_RIGHT,
+	]
+});
+
+
+loginSplitWindow.open();
+
+
+
 //var url = "https://glibrary.ct.infn.it/secure/view.php?all_variables";
 var login_url = "https://gridp.ct.infn.it/ds/WAYF?entityID=https://liferay.ct.infn.it/shibboleth&action=selection&origin=https://idp.ct.infn.it/idp/shibboleth";
 
@@ -116,7 +198,7 @@ win.add(loginBtn);
 win.add(getRepoButtons);
 win.add(getStoragesButton);
 
-win.open();
+//win.open();
 
 function apiCall(cookie, url) {
 

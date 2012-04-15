@@ -1,9 +1,8 @@
 // this sets the background color of the master UIView (when there are no windows/tab groups on it)
 Titanium.UI.setBackgroundColor('#000');
 
-var shibCookie = "";
+var shibCookie = Ti.App.Properties.getString("shibCookie", "");
 var firstLoad = true;
-
 
 
 var federationsWindow = Ti.UI.createWindow({
@@ -65,6 +64,11 @@ net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", functi
 
 federationsTableView.addEventListener('click', function(e) {
 	var idpsData = [];
+	//Ti.API.info(loginWindow.visible);
+	if (loginWindow.visible) {
+		detailNav.close(loginWindow);
+	}
+	//
 	//detailNav.open(idpsListWindow);
 	for (var i=0; i<e.rowData.idps.length; i++) {
 			idpsData[i] = {title: e.rowData.idps[i].displayName, origin: e.rowData.idps[i].origin, hasChild: true}
@@ -75,19 +79,16 @@ federationsTableView.addEventListener('click', function(e) {
 idpsTableView.addEventListener('click', function(e) {
 	
 	var login_url = "https://gridp.ct.infn.it/ds/WAYF?entityID=https://indicate-gw.consorzio-cometa.it/shibboleth&action=selection&origin=";
-	idpsListWindow.setTitle("Back");
+	//idpsListWindow.setTitle("Back");
 	detailNav.open(loginWindow);
 	loginWindow.setTitle(e.rowData.title);
-	
+	loginWindow.backButtonTitle = 'Back'
 	//loginWindow.leftNavButton = Titanium.UI.createButton({title:'Back'});
 	//Ti.API.info(e.rowData.origin);
 	wv.url = login_url + e.rowData.origin;
 	
 });
 
-idpsListWindow.addEventListener('focus', function() {
-	idpsListWindow.title = "Please select your identity provider";
-});
 
 var loginSplitWindow = Ti.UI.iPad.createSplitWindow({
 	masterView: masterNav,
@@ -114,19 +115,6 @@ loginSplitWindow.addEventListener('visible',function(e)
 });
 
 
-loginSplitWindow.open();
-
-
-
-//var url = "https://glibrary.ct.infn.it/secure/view.php?all_variables";
-
-
-var url = "https://liferay.ct.infn.it/glibrary/time/";
-
-var url2 = "https://liferay.ct.infn.it/glibrary/getTree/deroberto/";
-var win = Ti.UI.createWindow({
-	backgroundColor : "white",
-});
 
 
 var loginWindow = Ti.UI.createWindow({
@@ -140,20 +128,14 @@ var loadingInd = Ti.UI.createActivityIndicator({
 	color: "black",
 	width: "200",
 	height: "80",
+	bottom: 20,
 	message: "Loading...",
 	font: {fontFamily: "Helvetica Neue", fontSize: 26, fontFamily: "bold"}
 });
 
 
-var wv = Ti.UI.createWebView({
-	//url : login_url,
-	//borderWidth : 10,
-	//borderRadius : 5,
-	//height : 550,
-	//width : 1024,
-	//borderColor : "gray"
-});
-
+var wv = Ti.UI.createWebView();
+loginWindow.add(loadingInd);
 loginWindow.add(wv);
 
 wv.addEventListener('beforeload', function() {
@@ -180,11 +162,15 @@ wv.addEventListener('load', function(e) {
 				if(cookies[i].indexOf("_shibsession_") != -1) {
 					shibCookie = cookies[i];
 					Ti.API.info("Shibboleth Session: " + shibCookie);
-					getRepoButtons.visible = true;
-					getStoragesButton.visible = true;
-					//loginBtn.visible = false;
+					Ti.App.Properties.setString("shibCookie", shibCookie);
 					loginSplitWindow.close();
-					alert("logged successfully");
+					apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/login/", function(response) {
+						Ti.API.info("logged in");
+						alert("logged as " + response.cn);
+						userInfoLabel.text = "Logged as: "  + response.cn;
+					});
+					
+					mainSplitWindow.open();
 					break;
 				}
 			}
@@ -195,41 +181,152 @@ wv.addEventListener('load', function(e) {
 });
 
 
-var getRepoButtons = Ti.UI.createButton({
-	title : "get DeRoberto tree",
-	width : 160,
-	height : 70,
-	top : 140,
-	visible : false
+var repositoryWindow = Ti.UI.createWindow({
+	backgroundColor: "white",
+	bottom: 50
 });
 
-getRepoButtons.addEventListener("click", function() {
-	apiCall(shibCookie, url2);
+
+
+var browserWindow = Ti.UI.createWindow({
+	backgroundColor: "white"
 });
-var getStoragesButton = Ti.UI.createButton({
-	title : "get Storages",
-	width : 160,
-	height : 70,
-	top : 240,
-	visible : false
-})
-
-getStoragesButton.addEventListener("click", function() {
-	apiCall(shibCookie, "http://liferay.ct.infn.it/decide/storages/3");
-})
 
 
-win.add(getRepoButtons);
-win.add(getStoragesButton);
+var repoNav = Ti.UI.iPhone.createNavigationGroup({
+	window: repositoryWindow
+});
 
-//win.open();
+var browserNav = Ti.UI.iPhone.createNavigationGroup({
+	window: browserWindow
+});
 
-function apiCall(cookie, url) {
+var mainSplitWindow = Ti.UI.iPad.createSplitWindow({
+	masterView: repoNav,
+	detailView: browserNav,
+	orientationModes : [
+			Titanium.UI.LANDSCAPE_LEFT,
+			Titanium.UI.LANDSCAPE_RIGHT,
+		]
+});
 
+var userInfoView = Ti.UI.createView({
+	bottom:0,
+	left:0,
+	//width:250,
+	height:50,
+	//borderWidth:1,
+	borderColor: "gray",
+	backgroundColor: "gray"
+});
+
+var userInfoLabel = Ti.UI.createLabel({
+	width:"auto",
+	height: "auto" 
+});
+
+userInfoView.add(userInfoLabel);
+
+repoNav.add(userInfoView);
+
+var repoListTableView = Ti.UI.createTableView();
+repositoryWindow.add(repoListTableView);
+
+if (shibCookie === "")
+	loginSplitWindow.open();
+else {
+	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/login/", function(response) {
+		userInfoLabel.text = "Logged as: " + response.cn;
+	}); 
+	apiCall(shibCookie, "http://glibrary.ct.infn.it/glibrary_new/indicate/repos.json", function(response) {
+		var data = [];
+		for (var i=0; i < response.length; i++) {
+			var repo = {};
+			repo.title = response[i].rep_name;
+			repo.hasChild = true;
+			repo.name = response[i].repository;
+			repo.leftImage = response[i].thumb;
+			data.push(repo);
+		}
+		repositoryWindow.title = "Repositories"
+		repoListTableView.setData(data);
+	});
+	mainSplitWindow.open();
+}
+
+typesWindow = Ti.UI.createWindow({
+	backgroundColor: "white"
+});
+
+typesTableView = Ti.UI.createTableView();
+typesWindow.add(typesTableView);
+
+
+
+
+repoListTableView.addEventListener('click', function(e) {
+	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/mountTree/" + e.rowData.name + "/?node=0", function(response) {
+		Ti.API.info(response);
+		var data = [];
+		for (var i=0; i < response.length; i++) {
+			var type = {};
+			type.title = response[i].text;
+			type.isLeaf = response[i].leaf;
+			type.name = String(response[i].id);
+			type.leftImage = "Folder-Add.png";
+			if (!type.isLeaf) {
+				apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/mountTree/" + e.rowData.name + "/?node=" + response[i].id, function(response) {
+					Ti.API.info(response);
+					for (var j=0; j < response.length; j++) {
+							var row = Ti.UI.createTableViewRow();
+							row.add(Ti.UI.createLabel({
+								text: response[j].text,
+								left: 100,
+								font: {fontSize: 18}	
+							}));
+							row.add(Ti.UI.createImageView({
+								image: "folder.png",
+								width: 50,
+								left: 50
+							}));
+							row.name = "" + response[j].id;
+							row.path = response[j].path;
+							row.hasChild = true;
+							var previousRow = typesTableView.getIndexByName(type.name);
+							typesTableView.insertRowAfter(previousRow, row);
+					}
+				});
+			}
+			type.path = response[i].path;
+			type.hasChild = true;
+			//typesTableView.appendRow(type);
+			data.push(type);
+		}
+		typesTableView.setData(data);
+		repoNav.open(typesWindow);
+	});
+	
+	
+	
+});
+
+function apiCall(cookie, url, _callback) {
+	//Ti.API.info(url);
 	var xhr = Ti.Network.createHTTPClient();
 	xhr.onload = function() {
-		alert(this.responseText);
+		//Ti.API.info(this.responseText);
+		if (this.responseText.indexOf("<title>Access System Failure</title>") != -1) {
+			mainSplitWindow.close();
+			loginSplitWindow.open();
+		} else {
+			var response = JSON.parse(this.responseText);
+			//Ti.API.info(response);
+			_callback(response);
+		}
 	};
+	xhr.onerror = function(e) {
+		alert(e);
+	}
 	xhr.open('GET', url);
 	xhr.setRequestHeader("Cookie", cookie);
 	xhr.send();

@@ -347,9 +347,10 @@ repoListTableView.addEventListener('click', function(e) {
 
 typesTableView.addEventListener('click', function(e) {
 	//Ti.API.info(JSON.stringify(e.rowData));
+	Ti.API.info(JSON.stringify(browserNav.window));
 	var repoName = e.rowData.path.split("/")[1];
 	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/glib" + e.rowData.path, function(response) {
-		Ti.API.info(response);
+		//Ti.API.info(response);
 		var data = [];
 		//Ti.API.info(response.records);
 		for (var i=0; i< response.records.length; i++) {
@@ -375,17 +376,104 @@ typesTableView.addEventListener('click', function(e) {
 			data.push(row);
 		}
 		//Ti.API.info(data);
+		browserWindow.title = e.row.children[0].text;
 		itemBrowserTableView.setData(data);
 	});
 });
 
-itemBrowserTableView.addEventListener('click', function(e) {
-	apiCall(shibCookie, "http://indicate-gw.consorzio-cometa.it/glibrary/links2/" + currentRepo + "/" + e.rowData.id + "/", function(response) {
-		var mapView = Ti.Map.createView({
-				
-		});
-	});
+var itemDetail = Ti.UI.createWindow({
+	backgroundColor: "white"
 });
+
+var mapView = Ti.Map.createView({
+			mapType: Titanium.Map.STANDARD_TYPE,
+			animate:true,
+			regionFit:true,
+			userLocation:true,
+			region: {
+				latitude: 37.675125,
+				longitude: 14.051514,
+				latitudeDelta: 0.3,
+				longitudeDelta: 0.3
+			}
+});
+itemDetail.add(mapView);
+
+
+itemBrowserTableView.addEventListener('click', function(e) {
+	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/links2/" + currentRepo + "/" + e.rowData.id + "/", function(response) {
+		for (var i=0; i< response.length; i++) {
+			var ann = Titanium.Map.createAnnotation({
+    			latitude:response[i].lat, 
+    			longitude:response[i].lng,
+    			title: response[i].name,
+   				pincolor:Titanium.Map.ANNOTATION_RED,
+    			animate:true,
+    			leftButton: 'storage.png'
+			});
+			
+			if (response[i].enabled == "1") {
+				Ti.API.info(response[i].enabled);
+				ann.pincolor = Titanium.Map.ANNOTATION_GREEN;
+				ann.rightButton = Titanium.UI.iPhone.SystemButton.DISCLOSURE;
+				ann.link = response[i].link;
+				mapView.selectAnnotation(ann);
+				
+			}
+			mapView.addAnnotation(ann);
+			
+		}
+		itemDetail.title = e.rowData.title;
+		browserNav.open(itemDetail);
+	});
+	
+});
+
+var viewer = Ti.UI.createWindow();
+var wv = Ti.UI.createWebView();
+var iv = Ti.UI.createImageView();
+
+mapView.addEventListener('click', function(e) {
+	if (e.clicksource == 'rightButton') {
+		var url = "https://indicate-gw.consorzio-cometa.it" + e.annotation.link.split('"')[1]
+		Ti.API.info(url);	
+		var fileType = url.substring(url.length-3);
+		if (fileType == "pdf" || fileType == "PDF") {
+			viewer.add(wv);
+			wv.url =  url;
+			viewer.open();
+		} else if (fileType == "jpg" || fileType == "JPG") {
+			var urlTokens = url.split("/");
+			filename = urlTokens[urlTokens.length-1];
+			Ti.API.info(filename);
+			download(shibCookie, url, filename, function() {
+				viewer.add(iv);
+				var f = Ti.FileSystem.getFile(Ti.FileSystem.applicationDataDirectory, filename);
+				iv.image = f.read();
+				viewer.open();
+			});	
+		}
+	}
+	
+});
+
+function download(cookie, url, filename, __callback) {
+	var xhr = Ti.Network.createHTTPClient();
+	xhr.onload = function() {
+		var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
+		f.write(this.responseData);
+		__callback();
+	}
+	xhr.onerror = function(e) {
+		alert(e);
+	}
+	xhr.open('GET', url);
+	Ti.API.info("URL : " + url);
+	Ti.API.info("cookie : " + cookie);
+	xhr.setRequestHeader("Cookie", cookie);
+	xhr.send();
+}
+
 
 function apiCall(cookie, url, _callback) {
 	Ti.API.info(url);

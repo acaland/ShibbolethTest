@@ -430,19 +430,75 @@ itemBrowserTableView.addEventListener('click', function(e) {
 });
 
 var viewer = Ti.UI.createWindow();
-var wv = Ti.UI.createWebView();
+var wv2 = Ti.UI.createWebView();
 var iv = Ti.UI.createImageView();
+var closeBtn = Ti.UI.createButton({title:"Close"});
+var reloadBtn = Ti.UI.createButton({title:"Reload"});
+viewer.rightNavButton = closeBtn;
+viewer.leftNavButton = reloadBtn;
+closeBtn.addEventListener('click', function() {
+	viewer.close();
+	viewer.remove(wv2);
+});
+
+var actInd = Ti.UI.createActivityIndicator({
+  color: 'black',
+  font: {fontFamily:'Helvetica Neue', fontSize:2, fontWeight:'bold'},
+  message: 'Loading...',
+  style:Ti.UI.iPhone.ActivityIndicatorStyle.DARK,
+  //top:10,
+  //left:10,
+  height:'auto',
+  width:'auto'
+});
+wv2.add(actInd);
+
+reloadBtn.addEventListener('click', function() {
+	wv2.reload();
+});
+			
+wv2.addEventListener('beforeload', function() {
+	Ti.API.info("setting cookie:" + shibCookie);
+	wv2.evalJS("document.cookie='" + shibCookie + "';");
+	actInd.show();
+	Ti.API.info("loading...");
+	
+});
+wv2.addEventListener('load', function(e) {
+	wv2.evalJS("document.cookie='" + shibCookie + "';");
+	Ti.API.info("caricato");
+	Ti.API.info(wv2.evalJS("document.cookie"));
+	actInd.hide();
+	Ti.API.info(e.url);
+	Ti.API.info(Ti.Filesystem.applicationDataDirectory);
+	var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, "prova.pdf");
+	//var f = Titanium.Filesystem.getFile(Titanium.Filesystem.applicationDataDirectory,filename);
+	Ti.API.info(f);
+	//Ti.API.info(JSON.stringify(f));
+	Ti.API.info(wv2.html);
+	f.write(wv2.html);
+	
+	
+	
+	
+});
 
 mapView.addEventListener('click', function(e) {
 	if (e.clicksource == 'rightButton') {
 		var url = "https://indicate-gw.consorzio-cometa.it" + e.annotation.link.split('"')[1]
 		Ti.API.info(url);	
 		var fileType = url.substring(url.length-3);
-		if (fileType == "pdf" || fileType == "PDF") {
-			viewer.add(wv);
-			wv.url =  url;
-			viewer.open();
-		} else if (fileType == "jpg" || fileType == "JPG") {
+		if (fileType == "jpg" || fileType == "JPG" || fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
+			Ti.API.info(shibCookie);
+			viewer.add(wv2);
+			
+			
+			wv2.url =  url;
+			wv2.evalJS("document.cookie='" + shibCookie + "';");
+			
+			
+			viewer.open({modal:true});
+		} else  {
 			var urlTokens = url.split("/");
 			filename = urlTokens[urlTokens.length-1];
 			Ti.API.info(filename);

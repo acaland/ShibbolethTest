@@ -43,6 +43,8 @@ var detailNav = Ti.UI.iPhone.createNavigationGroup({
 
 var net = require("services/net");
 net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", function(federations) {
+	Ti.API.info("federations:");
+	Ti.API.info(federations);
 	var federationData = [];
 	federationData[0] = {title: "All", hasChild: true}
 	federationData[0].idps = [];
@@ -311,6 +313,7 @@ repoListTableView.addEventListener('click', function(e) {
 			type.isLeaf = response[i].leaf;
 			type.name = String(response[i].id);
 			type.leftImage = "Folder-Add.png";
+			type.height = 70;
 			if (!type.isLeaf) {
 				apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/mountTree/" + currentRepo + "/?node=" + response[i].id, function(response) {
 					//Ti.API.info(response);
@@ -329,6 +332,7 @@ repoListTableView.addEventListener('click', function(e) {
 							row.name = "" + response[j].id;
 							row.path = response[j].path;
 							row.hasChild = true;
+							row.height = 70;
 							var previousRow = typesTableView.getIndexByName(type.name);
 							typesTableView.insertRowAfter(previousRow, row);
 					}
@@ -393,8 +397,8 @@ var mapView = Ti.Map.createView({
 			region: {
 				latitude: 37.675125,
 				longitude: 14.051514,
-				latitudeDelta: 0.3,
-				longitudeDelta: 0.3
+				latitudeDelta: 2,
+				longitudeDelta: 2
 			}
 });
 itemDetail.add(mapView);
@@ -453,6 +457,26 @@ var actInd = Ti.UI.createActivityIndicator({
 });
 wv2.add(actInd);
 
+
+var pbar=Titanium.UI.createProgressBar({
+	width:200,
+	height:50,
+	min:0,
+	max:1,
+	value:0,
+	style:Titanium.UI.iPhone.ProgressBarStyle.PLAIN,
+	top:30,
+	message:'Downloading File',
+	font:{fontSize:12, fontWeight:'bold'},
+	color:'#888'
+});
+
+mapView.add(pbar);
+
+
+
+
+
 reloadBtn.addEventListener('click', function() {
 	wv2.reload();
 });
@@ -488,14 +512,15 @@ mapView.addEventListener('click', function(e) {
 		var url = "https://indicate-gw.consorzio-cometa.it" + e.annotation.link.split('"')[1]
 		Ti.API.info(url);	
 		var fileType = url.substring(url.length-3);
-		if (fileType == "jpg" || fileType == "JPG" || fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
+		//if (fileType == "jpg" || fileType == "JPG" || fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
+		if (fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
 			Ti.API.info(shibCookie);
 			viewer.add(wv2);
 			
 			
-			wv2.url =  url;
-			wv2.evalJS("document.cookie='" + shibCookie + "';");
 			
+			wv2.evalJS("document.cookie='" + shibCookie + "';");
+			wv2.url =  url;
 			
 			viewer.open({modal:true});
 		} else  {
@@ -503,26 +528,92 @@ mapView.addEventListener('click', function(e) {
 			filename = urlTokens[urlTokens.length-1];
 			Ti.API.info(filename);
 			download(shibCookie, url, filename, function() {
+				
 				viewer.add(iv);
-				var f = Ti.FileSystem.getFile(Ti.FileSystem.applicationDataDirectory, filename);
+				Ti.API.info(filename);
+				var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
+				
+				Ti.API.info(f);
 				iv.image = f.read();
-				viewer.open();
+				
+				viewer.open({modal:true});
 			});	
 		}
 	}
 	
 });
 
-function download(cookie, url, filename, __callback) {
-	var xhr = Ti.Network.createHTTPClient();
+function download(cookie, url, filename, _callback) {
+	var xhr = Ti.Network.createHTTPClient({timeout: 3000}); //,autoEncodeUrl:0, autoRedirect:false});
 	xhr.onload = function() {
+		Ti.API.info("caricato");
+		Ti.API.info(xhr.location);
+		
 		var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
+		//Ti.API.info(Ti.Filesystem.applicationDataDirectory);
 		f.write(this.responseData);
-		__callback();
-	}
+		pbar.hide();
+		
+	};
 	xhr.onerror = function(e) {
-		alert(e);
-	}
+		// Ti.API.info(JSON.stringify(e));
+		Ti.API.info(e);
+		Ti.API.info(xhr.status);
+		// Ti.API.info(xhr.getResponseHeader("Location"));
+		// Ti.API.info(xhr.allResponseHeaders);
+		// Ti.API.info(xhr.autoRedirect);
+		// Ti.API.info(xhr.getResponseHeaders());
+		// Ti.API.info(xhr.location);
+		var redirect = xhr.location.replace(/%25/g, "%");
+		Ti.API.info(redirect);
+		// Ti.API.info(this.autoEncodeUrl);
+		if (xhr.status == 401 && redirect) {
+			Ti.API.info("riproviamo");
+			var xhr2 = Ti.Network.createHTTPClient({timeout: 30000});
+			xhr2.ondatastream = function(e) {
+				pbar.value = e.progress;
+			};
+			xhr2.onerror = function(e) {
+				Ti.API.info(JSON.stringify(e));
+				Ti.API.info(xhr2.status);
+				if (xhr2.status == 404) {
+					alert("Replica not found");
+					pbar.hide();
+					Ti.API.info(xhr2.responseText);
+				}
+			}
+			xhr2.onload = function() {
+				Ti.API.info("loaded");
+				//mapView.add(Ti.UI.createImageView({
+				//	image: xhr2.responseData
+				//}));
+				var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
+				f.write(this.responseData);
+				pbar.hide();
+				_callback();
+			}
+			xhr2.open('GET', redirect);
+			xhr2.send();
+			pbar.show();
+		}
+	};
+	
+	// xhr.onreadystatechange = function(e) {
+		/*
+		if (this.readyState === Ti.Network.HTTPClient.HEADERS_RECEIVED) {
+					Ti.API.info("Ho ricevuto gli headers");
+				}*/
+		
+		// Ti.API.info(xhr.getResponseHeaders());
+		// Ti.API.info(xhr.getResponseHeader("Location"));
+		// Ti.API.info("ReadyState:");
+		// Ti.API.info(this.readyState);
+		// Ti.API.info(xhr.location);
+		// Ti.API.info(this.responseText);
+		// Ti.API.info(xhr.status);
+		//Ti.API.info(xhr.allResponseHeaders);
+		// Ti.API.info(JSON.stringify(e));
+	// }
 	xhr.open('GET', url);
 	Ti.API.info("URL : " + url);
 	Ti.API.info("cookie : " + cookie);
@@ -549,6 +640,7 @@ function apiCall(cookie, url, _callback) {
 		alert(e);
 	}
 	xhr.open('GET', url);
+	Ti.API.info("Cookie:'"+ cookie + "'");
 	xhr.setRequestHeader("Cookie", cookie);
 	xhr.send();
 }

@@ -4,6 +4,7 @@ Titanium.UI.setBackgroundColor('#000');
 var shibCookie = Ti.App.Properties.getString("shibCookie", "");
 var firstLoad = true;
 var currentRepo = "";
+var currentUser = "";
 
 
 var federationsWindow = Ti.UI.createWindow({
@@ -43,8 +44,8 @@ var detailNav = Ti.UI.iPhone.createNavigationGroup({
 
 var net = require("services/net");
 net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", function(federations) {
-	Ti.API.info("federations:");
-	Ti.API.info(federations);
+	//Ti.API.info("federations:");
+	//Ti.API.info(federations);
 	var federationData = [];
 	federationData[0] = {title: "All", hasChild: true}
 	federationData[0].idps = [];
@@ -149,6 +150,8 @@ wv.addEventListener('beforeload', function() {
 	}
 });
 
+var net = require('services/net');
+
 wv.addEventListener('load', function(e) {
 	Ti.API.info("into load event");
 	loadingInd.hide();
@@ -166,11 +169,14 @@ wv.addEventListener('load', function(e) {
 					shibCookie = cookies[i];
 					Ti.API.info("Shibboleth Session:" + shibCookie);
 					Ti.App.Properties.setString("shibCookie", shibCookie);
+					net.setCookie(shibCookie);
 					loginSplitWindow.close();
 					apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/login/", function(response) {
 						Ti.API.info("logged in");
 						//alert("logged as " + response.cn);
+						currentUser = response.cn;
 						userInfoLabel.text = "Logged as: "  + response.cn;
+						Ti.API.info(currentUser);
 					});
 					
 					mainSplitWindow.open();
@@ -262,6 +268,8 @@ if (shibCookie === "")
 else {
 	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/login/", function(response) {
 		userInfoLabel.text = "Logged as: " + response.cn;
+		currentUser = response.cn;
+		net.setCookie(shibCookie);
 		mainSplitWindow.open();
 	}); 
 	apiCall(shibCookie, "http://glibrary.ct.infn.it/glibrary_new/indicate/repos.json", function(response) {
@@ -424,6 +432,7 @@ itemBrowserTableView.addEventListener('click', function(e) {
 				mapView.selectAnnotation(ann);
 				
 			}
+			mapView.entryID = e.rowData.id;
 			mapView.addAnnotation(ann);
 			
 		}
@@ -433,17 +442,9 @@ itemBrowserTableView.addEventListener('click', function(e) {
 	
 });
 
-var viewer = Ti.UI.createWindow();
+var viewer = Ti.UI.createWindow({backgroundColor:"white"});
 var wv2 = Ti.UI.createWebView();
-var iv = Ti.UI.createImageView();
-var closeBtn = Ti.UI.createButton({title:"Close"});
-var reloadBtn = Ti.UI.createButton({title:"Reload"});
-viewer.rightNavButton = closeBtn;
-viewer.leftNavButton = reloadBtn;
-closeBtn.addEventListener('click', function() {
-	viewer.close();
-	viewer.remove(wv2);
-});
+//var iv = Ti.UI.createImageView({top:60});
 
 var actInd = Ti.UI.createActivityIndicator({
   color: 'black',
@@ -467,8 +468,8 @@ var pbar=Titanium.UI.createProgressBar({
 	style:Titanium.UI.iPhone.ProgressBarStyle.PLAIN,
 	top:30,
 	message:'Downloading File',
-	font:{fontSize:12, fontWeight:'bold'},
-	color:'#888'
+	font:{fontSize:12}
+	//color:'#888'
 });
 
 mapView.add(pbar);
@@ -477,9 +478,9 @@ mapView.add(pbar);
 
 
 
-reloadBtn.addEventListener('click', function() {
-	wv2.reload();
-});
+//reloadBtn.addEventListener('click', function() {
+//	wv2.reload();
+//});
 			
 wv2.addEventListener('beforeload', function() {
 	Ti.API.info("setting cookie:" + shibCookie);
@@ -507,13 +508,15 @@ wv2.addEventListener('load', function(e) {
 	
 });
 
+var AnnotationWindow = require('ui/AnnotationWindow');
+
 mapView.addEventListener('click', function(e) {
 	if (e.clicksource == 'rightButton') {
 		var url = "https://indicate-gw.consorzio-cometa.it" + e.annotation.link.split('"')[1]
 		Ti.API.info(url);	
 		var fileType = url.substring(url.length-3);
 		//if (fileType == "jpg" || fileType == "JPG" || fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
-		if (fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
+		if (fileType == "pdf" || fileType == "PDF") { // || fileType == "tif" || fileType == "TIF") {
 			Ti.API.info(shibCookie);
 			viewer.add(wv2);
 			
@@ -527,17 +530,26 @@ mapView.addEventListener('click', function(e) {
 			var urlTokens = url.split("/");
 			filename = urlTokens[urlTokens.length-1];
 			Ti.API.info(filename);
-			download(shibCookie, url, filename, function() {
+			var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
+			if (!f.exists()) {
+				download(shibCookie, url, filename, function() {
 				
+				/*
 				viewer.add(iv);
-				Ti.API.info(filename);
-				var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
-				
-				Ti.API.info(f);
-				iv.image = f.read();
-				
-				viewer.open({modal:true});
-			});	
+								Ti.API.info(filename);
+								var f = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, filename);
+								
+								Ti.API.info(f);
+								iv.image = f.read();
+								
+								viewer.open();*/
+					var annotation = new AnnotationWindow(filename, currentRepo, mapView.entryID, currentUser);
+					annotation.open();
+				});	
+			} else {
+				var annotation = new AnnotationWindow(filename, currentRepo, mapView.entryID, currentUser);
+				annotation.open();
+			}
 		}
 	}
 	

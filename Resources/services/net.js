@@ -6,17 +6,23 @@ exports.setCookie = function(shibbolethCookie) {
 
 exports.retrieveIdpList = function(entityId, _callback) {
 
-	// entityID example "https://indicate-gw.consorzio-cometa.it/shibboleth"
-
-	//var dsEndPoint = "https://gridp.ct.infn.it/ds/WAYF?entityID="+ entityId +"&json=true";
-	var dsEndPoint = "http://glibrary.ct.infn.it/t/idps.json";
+	//entityID example "https://indicate-gw.consorzio-cometa.it/shibboleth"
+	// old WAYF endpoint = gridp.ct.infn.it
+	var dsEndPoint = "https://gridp.garr.it/ds/WAYF?entityID="+ entityId +"&json=true";
+	// var dsEndPoint = "http://glibrary.ct.infn.it/t/idps.json";
 	var xhr = Ti.Network.createHTTPClient();
 	Ti.API.info(dsEndPoint);
 
 	xhr.onload = function() {
-		var response = JSON.parse(this.responseText);
-		Ti.API.info(response);
-		Ti.API.info(response.federations);
+		//Ti.API.info(this.responseText);
+		try {
+			var response = JSON.parse(this.responseText);	
+		} catch (err) {
+			Ti.API.info(err);
+		} 
+		
+		//Ti.API.info(response);
+		//Ti.API.info(response.federations);
 		_callback(response.federations);
 	}
 	xhr.onerror = function() {

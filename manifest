@@ -1,8 +1,8 @@
-#appname: ShibTest
-#publisher: tcaland
-#url: http://
-#image: appicon.png
-#appid: it.etnatraining.shibtest
-#desc: undefined
-#type: ipad
-#guid: f0d8cfcb-87ad-46cb-a71d-3188d0fc6ef1
+#appname:ShibTest
+#publisher:tcaland
+#url:http://
+#image:appicon.png
+#appid:it.etnatraining.shibtest
+#desc:not specified
+#type:ipad
+#guid:f0d8cfcb-87ad-46cb-a71d-3188d0fc6ef1

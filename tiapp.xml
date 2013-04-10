@@ -2,12 +2,12 @@
 <ti:app xmlns:ti="http://ti.appcelerator.org">
     <deployment-targets>
         <target device="mobileweb">false</target>
-        <target device="iphone">true</target>
+        <target device="iphone">false</target>
         <target device="ipad">true</target>
         <target device="android">true</target>
         <target device="blackberry">false</target>
     </deployment-targets>
-    <sdk-version>2.0.2.GA</sdk-version>
+    <sdk-version>3.0.2.GA</sdk-version>
     <id>it.etnatraining.shibtest</id>
     <name>ShibTest</name>
     <version>1.0</version>

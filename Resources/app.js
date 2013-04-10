@@ -3,8 +3,12 @@ Titanium.UI.setBackgroundColor('#000');
 
 var shibCookie = Ti.App.Properties.getString("shibCookie", "");
 var firstLoad = true;
+var loggedIn = false;
 var currentRepo = "";
 var currentUser = "";
+var gateway = "https://earthserver-sg.consorzio-cometa.it";
+//var gateway = "https://indicate-gw.consorzio-cometa.it";
+//var gateway = "applications.eu-decide.eu";
 
 
 var federationsWindow = Ti.UI.createWindow({
@@ -43,7 +47,8 @@ var detailNav = Ti.UI.iPhone.createNavigationGroup({
 });
 
 var net = require("services/net");
-net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", function(federations) {
+//net.retrieveIdpList("https://indicate-gw.consorzio-cometa.it/shibboleth", function(federations) {
+net.retrieveIdpList(gateway +"/shibboleth", function(federations) {
 	//Ti.API.info("federations:");
 	//Ti.API.info(federations);
 	var federationData = [];
@@ -82,7 +87,7 @@ federationsTableView.addEventListener('click', function(e) {
 
 idpsTableView.addEventListener('click', function(e) {
 	
-	var login_url = "https://gridp.ct.infn.it/ds/WAYF?entityID=https://indicate-gw.consorzio-cometa.it/shibboleth&action=selection&origin=";
+	var login_url = "https://gridp.garr.it/ds/WAYF?entityID="+ gateway + "/shibboleth&action=selection&origin=";
 	//idpsListWindow.setTitle("Back");
 	detailNav.open(loginWindow);
 	loginWindow.setTitle(e.rowData.title);
@@ -142,26 +147,37 @@ var wv = Ti.UI.createWebView();
 loginWindow.add(loadingInd);
 loginWindow.add(wv);
 
-wv.addEventListener('beforeload', function() {
-	Ti.API.info("beforeload");
-	loadingInd.show();
-	if(!firstLoad) {
-		this.hide();
-	}
-});
+/*wv.addEventListener('beforeload', function(e) {
+	Ti.API.info(e.navigationType);
+	//Ti.API.info("beforeload");
+	Ti.API.info(e.url);
+	//var cookies = wv.evalJS("document.cookie").split(";"); 
+    //Ti.API.info( "# of cookies -> " + cookies.length  );
+    for (i = 0; i <= cookies.length - 1; i++) {
+            Ti.API.info( "cookie -> " + cookies[i] );
+    }
+	//loadingInd.show();
+	//if(!firstLoad) {
+	//	this.hide();
+	//}
+}); */
 
 var net = require('services/net');
 
 wv.addEventListener('load', function(e) {
-	Ti.API.info("into load event");
-	loadingInd.hide();
-	if(firstLoad) {
+	
+	//Ti.API.info("into load event");
+	Ti.API.info("Loaded: " + e.url);
+	//Ti.API.info(JSON.stringify(wv.getCookiesForURL(e.url)));
+	//loadingInd.hide();
+	if (firstLoad || loggedIn) {
 		firstLoad = false;
 	} else {	
 		Ti.API.info('check cookies');
-		var raw_cookies = this.evalJS("document.cookie");
+		var raw_cookies = wv.evalJS("document.cookie");
+		Ti.API.info("cookie: " + raw_cookies);
 		if(raw_cookies.indexOf("_shibsession_") != -1) {
-			
+			Ti.API.info("ho trovato shibsession");
 			var cookies = raw_cookies.split(";");
 			for( i = 0; i <= cookies.length - 1; i++) {
 				Ti.API.info("cookie -> " + cookies[i]);
@@ -171,15 +187,18 @@ wv.addEventListener('load', function(e) {
 					Ti.App.Properties.setString("shibCookie", shibCookie);
 					net.setCookie(shibCookie);
 					loginSplitWindow.close();
-					apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/login/", function(response) {
-						Ti.API.info("logged in");
-						//alert("logged as " + response.cn);
-						currentUser = response.cn;
-						userInfoLabel.text = "Logged as: "  + response.cn;
-						Ti.API.info(currentUser);
-					});
+					
+					apiCall(shibCookie, gateway + "/api/login/", function(response) {
+											Ti.API.info("logged in");
+											//alert("logged as " + response.cn);
+											currentUser = response.cn;
+											userInfoLabel.text = "Logged as: "  + response.cn;
+											Ti.API.info(currentUser);
+										});
+					loggedIn = true;
 					
 					mainSplitWindow.open();
+					populateRepos();
 					break;
 				}
 			}
@@ -248,7 +267,7 @@ logoutBtn.addEventListener('click', function() {
 	Ti.API.info(wv.evalJS("document.cookie"));
 	shibCookie == "";
 	Ti.App.Properties.setString("shibCookie", "");
-	
+	loggedIn = false;
 	loginSplitWindow.open();
 });
 
@@ -263,15 +282,13 @@ repositoryWindow.add(repoListTableView);
 var itemBrowserTableView = Ti.UI.createTableView();
 browserWindow.add(itemBrowserTableView);
 
-if (shibCookie === "")
-	loginSplitWindow.open();
-else {
-	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/login/", function(response) {
-		userInfoLabel.text = "Logged as: " + response.cn;
-		currentUser = response.cn;
+function populateRepos() {
+		//apiCall(shibCookie, gateway + "/api/login/", function(response) {
+	//	userInfoLabel.text = "Logged as: " + response.cn;
+	//	currentUser = response.cn;
 		net.setCookie(shibCookie);
 		mainSplitWindow.open();
-	}); 
+	//}); 
 	apiCall(shibCookie, "http://glibrary.ct.infn.it/glibrary_new/indicate/repos.json", function(response) {
 		var data = [];
 		for (var i=0; i < response.length; i++) {
@@ -297,7 +314,14 @@ else {
 		repositoryWindow.title = "Repositories"
 		repoListTableView.setData(data);
 	});
-	
+}
+
+
+
+if (shibCookie === "")
+	loginSplitWindow.open();
+else {
+	populateRepos();
 }
 
 typesWindow = Ti.UI.createWindow({
@@ -312,7 +336,7 @@ typesWindow.add(typesTableView);
 
 repoListTableView.addEventListener('click', function(e) {
 	currentRepo = e.rowData.name;
-	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/mountTree/" + currentRepo + "/?node=0", function(response) {
+	apiCall(shibCookie, gateway + "/glibrary/mountTree/" + currentRepo + "/?node=0", function(response) {
 		//Ti.API.info(response);
 		var data = [];
 		for (var i=0; i < response.length; i++) {
@@ -323,7 +347,7 @@ repoListTableView.addEventListener('click', function(e) {
 			type.leftImage = "Folder-Add.png";
 			type.height = 70;
 			if (!type.isLeaf) {
-				apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/mountTree/" + currentRepo + "/?node=" + response[i].id, function(response) {
+				apiCall(shibCookie, gateway + "/glibrary/mountTree/" + currentRepo + "/?node=" + response[i].id, function(response) {
 					//Ti.API.info(response);
 					for (var j=0; j < response.length; j++) {
 							var row = Ti.UI.createTableViewRow();
@@ -361,7 +385,7 @@ typesTableView.addEventListener('click', function(e) {
 	//Ti.API.info(JSON.stringify(e.rowData));
 	Ti.API.info(JSON.stringify(browserNav.window));
 	var repoName = e.rowData.path.split("/")[1];
-	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/glib" + e.rowData.path, function(response) {
+	apiCall(shibCookie, gateway + "/glibrary/glib" + e.rowData.path, function(response) {
 		//Ti.API.info(response);
 		var data = [];
 		//Ti.API.info(response.records);
@@ -413,7 +437,7 @@ itemDetail.add(mapView);
 
 
 itemBrowserTableView.addEventListener('click', function(e) {
-	apiCall(shibCookie, "https://indicate-gw.consorzio-cometa.it/glibrary/links2/" + currentRepo + "/" + e.rowData.id + "/", function(response) {
+	apiCall(shibCookie, gateway + "/glibrary/links2/" + currentRepo + "/" + e.rowData.id + "/", function(response) {
 		for (var i=0; i< response.length; i++) {
 			var ann = Titanium.Map.createAnnotation({
     			latitude:response[i].lat, 
@@ -443,6 +467,13 @@ itemBrowserTableView.addEventListener('click', function(e) {
 });
 
 var viewer = Ti.UI.createWindow({backgroundColor:"white"});
+var closeViewerBtn = Ti.UI.createButton({
+	systemButton: Ti.UI.iPhone.SystemButton.DONE 
+});
+closeViewerBtn.addEventListener('click', function() {
+	viewer.close();
+});
+viewer.rightNavButton = closeViewerBtn;
 var wv2 = Ti.UI.createWebView();
 //var iv = Ti.UI.createImageView({top:60});
 
@@ -512,7 +543,7 @@ var AnnotationWindow = require('ui/AnnotationWindow');
 
 mapView.addEventListener('click', function(e) {
 	if (e.clicksource == 'rightButton') {
-		var url = "https://indicate-gw.consorzio-cometa.it" + e.annotation.link.split('"')[1]
+		var url = gateway + e.annotation.link.split('"')[1]
 		Ti.API.info(url);	
 		var fileType = url.substring(url.length-3);
 		//if (fileType == "jpg" || fileType == "JPG" || fileType == "pdf" || fileType == "PDF" || fileType == "tif" || fileType == "TIF") {
@@ -635,7 +666,7 @@ function download(cookie, url, filename, _callback) {
 
 
 function apiCall(cookie, url, _callback) {
-	Ti.API.info(url);
+	Ti.API.info("apiCall:" + url);
 	var xhr = Ti.Network.createHTTPClient();
 	xhr.onload = function() {
 		//Ti.API.info(this.responseText);
@@ -649,6 +680,7 @@ function apiCall(cookie, url, _callback) {
 		}
 	};
 	xhr.onerror = function(e) {
+		Ti.API.info("error in apiCall");
 		alert(e);
 	}
 	xhr.open('GET', url);
